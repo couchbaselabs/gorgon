@@ -52,9 +52,11 @@ type getSetGenerator struct {
 }
 
 func (gen *getSetGenerator) Next(client int) (gorgon.Instruction, error) {
+	//if the client is a nemesis client, return nil
 	if client < 0 {
 		return nil, nil
 	}
+	//if the client is a normal client, generate a random key and return a Get or Set instruction based on a random probability
 	key := gen.keys[gen.rand.Intn(len(gen.keys))]
 	if client&1 != 0 || gen.rand.Int63()&1 != 0 {
 		return &GetInstruction{Key: key}, nil

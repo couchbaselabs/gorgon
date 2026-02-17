@@ -10,6 +10,7 @@ type Cache struct {
 	equal    func(a, b any) bool
 }
 
+// returns a new cache with the given maximum count, hash function, and equality function
 func NewCache(maxCount int, hash func(any) uint64, equal func(a, b any) bool) *Cache {
 	if maxCount < 2 {
 		maxCount = 2
@@ -22,10 +23,12 @@ func NewCache(maxCount int, hash func(any) uint64, equal func(a, b any) bool) *C
 	}
 }
 
+// Returns the number of items currently in the cache
 func (c *Cache) Len() int {
 	return c.count
 }
 
+// Clears the cache, removing all items and resetting the count to zero
 func (c *Cache) Clear() {
 	for i := range c.table {
 		c.table[i] = nil
@@ -42,6 +45,7 @@ func (c *Cache) Clear() {
 	c.count = 0
 }
 
+// Checks if the cache contains the given value, returning true if it does and false otherwise
 func (c *Cache) Contains(value any) bool {
 	hash := c.hash(value)
 	for entry := c.table[c.bucket(hash)]; entry != nil; entry = entry.chainNext {
@@ -52,6 +56,8 @@ func (c *Cache) Contains(value any) bool {
 	return false
 }
 
+// Called when we want to insert a cache item into the cache
+// Returns true if the item was inserted, false if it was already in the cache
 func (c *Cache) Insert(value any) bool {
 	hash := c.hash(value)
 	b := c.bucket(hash)
@@ -91,6 +97,7 @@ func (c *Cache) Insert(value any) bool {
 	return true
 }
 
+// Called when we want to remove a cache item from the cache
 func (c *Cache) removeTail() *cacheEntry {
 	c.count--
 	tail := c.tail
@@ -112,6 +119,7 @@ func (c *Cache) removeTail() *cacheEntry {
 	panic("inconsistent cache state")
 }
 
+// Called when we want to move a cache item to the front of the cache (most recently used)
 func (c *Cache) bringToFront(entry *cacheEntry) {
 	if c.head != entry {
 		if c.tail == entry {
@@ -125,12 +133,17 @@ func (c *Cache) bringToFront(entry *cacheEntry) {
 	}
 }
 
+//	Returns the bucket index for the given hash value,
+//
+// using a mix of bit manipulation and multiplication
+// to distribute the hash values uniformly across the buckets
 func (c *Cache) bucket(h uint64) int {
 	h = (h ^ (h >> 32)) * 0x5851f42d4c957f2d
 	h = (h ^ (h >> 32)) & 0xffffffff
 	return int((h * uint64(len(c.table))) >> 32)
 }
 
+// Represents an entry in the cache
 type cacheEntry struct {
 	chainNext *cacheEntry
 	prev      *cacheEntry
@@ -139,6 +152,7 @@ type cacheEntry struct {
 	hash      uint64
 }
 
+// Called when we want to remove a cache entry from the cache.
 func (e *cacheEntry) remove() {
 	prev := e.prev
 	next := e.next

@@ -11,11 +11,15 @@ import (
 	"github.com/couchbaselabs/gorgon/src/gorgon/splitmix"
 )
 
+// This is the instruction object for network partition.
+// An instruction (either a get-set instruction or a nemesis instruction) is produced by the .Next() function and passed into the .Invoke() method
 type PartitionNodeInstruction struct {
 	Node int
 	Heal bool
 }
 
+// The below two functions are implementations of the gorgon.Instruction interface.
+// This is the string representation of the instruction object, makes the instruction readable.
 func (instr *PartitionNodeInstruction) String() string {
 	if instr.Heal {
 		return fmt.Sprintf("HealNode(%d)", instr.Node)
@@ -23,6 +27,7 @@ func (instr *PartitionNodeInstruction) String() string {
 	return fmt.Sprintf("PartitionNode(%d)", instr.Node)
 }
 
+// This is a method on the instruction object that returns true if the instruction is meant to be executed by the generator itself.
 func (*PartitionNodeInstruction) ForSelf() bool {
 	return true
 }
@@ -31,6 +36,8 @@ func NewNetworkPartitionNemesis(allowedPorts ...int) gorgon.Generator {
 	return &networkPartition{allowedPorts: allowedPorts}
 }
 
+// This is a struct that is equivalent to a generator for nemesis operations.
+// It implements the gorgon.Generator interface, and becomes a part of the generator list of the workload.
 type networkPartition struct {
 	allowedPorts  []int
 	client        *rpc.Client
@@ -55,9 +62,11 @@ func (*networkPartition) OnReturn(client int, instruction gorgon.Instruction, ou
 }
 
 func (nemesis *networkPartition) Next(client int) (gorgon.Instruction, error) {
+	//if the client is a normal client, return nil.
 	if client >= 0 {
 		return nil, nil
 	}
+	//if the client is nemesis client
 	if !nemesis.partitioned {
 		if time.Until(nemesis.partitionTime) > 0 {
 			return nil, nil
@@ -75,11 +84,14 @@ func (nemesis *networkPartition) Next(client int) (gorgon.Instruction, error) {
 	return nil, nil
 }
 
+// Setting up other fields of the nemesis object, configured via the opt object
 func (nemesis *networkPartition) SetUp(opt *gorgon.Options) error {
 	now := time.Now()
 	nemesis.nodeIdx = splitmix.Rand.Intn(len(opt.Nodes))
 	nemesis.node = opt.Nodes[nemesis.nodeIdx]
+	//time to partition is 1/4 of the total duration
 	nemesis.partitionTime = now.Add(opt.WorkloadDuration / 4)
+	//time to heal the partition is 3/4 of the total
 	nemesis.healTime = now.Add(opt.WorkloadDuration * 3 / 4)
 	client, err := jrpc.Dial(fmt.Sprintf("%s:%d", nemesis.node, opt.RpcPort), []byte(opt.RpcPassword))
 	if err != nil {

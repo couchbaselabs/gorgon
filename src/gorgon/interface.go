@@ -76,13 +76,16 @@ type Model struct {
 	// if each partition is linearizable. If left nil, this package will
 	// skip partitioning.
 	Partition func(history []Operation) [][]Operation
+
 	// Initial state of the system.
 	Init func() []State
+
 	// Step function for the system. Returns all possible next states for
 	// the given state, input, and output. If the system cannot step with
 	// the given state/input to produce the given output, this function
 	// should return an empty slice.s
 	Step func(state State, input Instruction, output Output) []State
+
 	//
 	Values func(input Instruction, output Output) (reads []KeyValueInt, writes []KeyValueInt)
 	//

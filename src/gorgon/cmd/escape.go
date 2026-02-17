@@ -2,6 +2,7 @@ package cmd
 
 import "fmt"
 
+// EscapeFileName is a function that escapes the name of the file to be saved.
 func EscapeFileName(name string) string {
 	n := len(name)
 	esc := make([]byte, 0, n)
@@ -18,6 +19,7 @@ func EscapeFileName(name string) string {
 
 var specialChars map[byte]string
 
+// init is a function that initializes the specialChars map.
 func init() {
 	specialChars = make(map[byte]string, 60)
 	for i := byte(0); i < 127; i++ {

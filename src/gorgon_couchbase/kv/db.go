@@ -66,7 +66,9 @@ func (db *database) SetUp() error {
 		if err := db.httpPost(node, "controller/hardResetNode", nil); err != nil {
 			return err
 		}
-		if err := db.httpPost(node, "nodes/self/controller/settings", nil); err != nil {
+		if err := db.httpPost(node, "nodes/self/controller/settings", map[string]string{
+			"path": "/tmp/lazyfs.mnt",
+		}); err != nil {
 			return err
 		}
 		if err := db.httpPost(node, "node/controller/rename", map[string]string{
@@ -201,9 +203,13 @@ func (db *database) httpPost(node, endpoint string, form map[string]string) erro
 
 func (db *database) NewClient(id int) (gorgon.Client, error) {
 	nodes := db.options.Nodes
+
+	//if the a proxy mode is enabled, this method returns the ClientOverRpc object which is the proxy object
 	if *db.config.ClientOverRpc {
 		return rpcs.NewClientOverRpc(id, nodes[id%len(nodes)], db.options), nil
 	}
+
+	//otherwise return the normal client object that connects directly to the couchbase cluster
 	uri := fmt.Sprintf("couchbase://%s:%d", strings.Join(nodes, ","), *db.config.Port)
 	return NewClient(id, uri, *db.config.User, *db.config.Pass), nil
 }
@@ -219,10 +225,20 @@ func (db *database) ClientConfig() string {
 	return string(configJson)
 }
 
+// this method returns a list of 3 workloads supported by the Couchbase database
+// one basic getset workload, one with kill nemesis and one with network partition nemesis
+// GetSetWorkload() returns a gorgon.Workload object with the GetSetModel model and a Generator array.
+// .Add() on this Workload adds a generator to the list of generators it has
+// Nemesis dont need generators, so we add direct nemeses objects into the generator list
 func (db *database) Workloads() []gorgon.Workload {
 	return []gorgon.Workload{
-		workloads.GetSetWorkload(),
-		workloads.GetSetWorkload().Add(nemeses.NewKillNemesis("memcached")).Add(NewSetAfterKillGenerator()),
-		workloads.GetSetWorkload().Add(nemeses.NewNetworkPartitionNemesis(8091)).Add(NewPartitionAwareGetSetGenerator()),
+		// workloads.GetSetWorkload(), //basic workload with getset instructions
+
+		// //workload with kill nemesis to kill memcached process on the worker nodes and a generator to set keys after the kill
+		// workloads.GetSetWorkload().Add(nemeses.NewKillNemesis("memcached")).Add(NewSetAfterKillGenerator()),
+
+		// //workload with network partition nemesis to partition the nodes and a partition aware getset generator
+		// workloads.GetSetWorkload().Add(nemeses.NewNetworkPartitionNemesis(8091)).Add(NewPartitionAwareGetSetGenerator()),
+		workloads.GetSetWorkload().Add(nemeses.NewLazyFsNemesis("echo \"lazyfs::clear-cache\" > /tmp/faults.fifo")),
 	}
 }

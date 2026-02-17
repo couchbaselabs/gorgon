@@ -7,16 +7,22 @@ import (
 	"github.com/couchbaselabs/gorgon/src/gorgon/generators"
 )
 
+// GetSetWorkload returns a workload that performs get and set operations on a harcoded set of keys.
 func GetSetWorkload() gorgon.Workload {
 	keys := []string{"key0", "key1", "key2", "key3", "key4", "key5", "key6", "key7"}
+
+	//it returns a basic workload with a staggered getset generator that generates get and set instructions on the specified keys
 	return gorgon.Workload{
 		Model:      GetSetModel(),
 		Generators: []gorgon.Generator{generators.Stagger(generators.NewGetSetGenerator(keys), time.Millisecond)},
 	}
 }
 
+
+//This is an implementation of the model interface which is a component within the workload 
 func GetSetModel() gorgon.Model {
 	return gorgon.Model{
+		//all the functions are implemented in place except the DescribeOperation and Partition functions
 		Init: func() []gorgon.State { return []gorgon.State{gorgon.IntMap{}} },
 		Hash: func(state gorgon.State) uint64 {
 			return state.(gorgon.IntMap).Hash()
@@ -27,8 +33,8 @@ func GetSetModel() gorgon.Model {
 		DescribeState: func(state gorgon.State) string {
 			return state.(gorgon.IntMap).String()
 		},
-		DescribeOperation: DescribeOperation,
-		Partition:         PartitionByKey,
+		DescribeOperation: DescribeOperation,      //this is defined in a separate file in the same package
+		Partition:         PartitionByKey,         //this is defined in a separate file in the same package
 		Step: func(state gorgon.State, input gorgon.Instruction, output gorgon.Output) []gorgon.State {
 			stateMap := state.(gorgon.IntMap)
 			switch instr := input.(type) {

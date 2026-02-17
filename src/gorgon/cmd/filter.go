@@ -6,11 +6,13 @@ import (
 	"github.com/couchbaselabs/gorgon/src/gorgon/wildcard"
 )
 
+// Filter is a struct that contains the match and exclude patterns for the filter.
 type Filter struct {
 	match   []wildcard.Matcher
 	exclude []wildcard.Matcher
 }
 
+// MakeFilter is a function that creates a filter object from the match and exclude patterns.
 func MakeFilter(match, exclude string) (filter Filter) {
 	for _, p := range strings.Split(match, "|") {
 		filter.match = append(filter.match, wildcard.Compile(p))
@@ -23,6 +25,7 @@ func MakeFilter(match, exclude string) (filter Filter) {
 	return
 }
 
+// Match is a method that checks if the subject matches the filter.
 func (filter Filter) Match(subject string) bool {
 	matched := false
 	for _, m := range filter.match {

@@ -14,6 +14,8 @@ import (
 
 const exitUsage = 2
 
+// Main is the main command handler for Gorgon.
+//Parses cli options, sets database options, and executes the specified command (run or rpc).
 func Main(db gorgon.Database) int {
 	var filter Filter
 	opt := &gorgon.Options{
@@ -43,6 +45,7 @@ func usage() int {
 	return exitUsage
 }
 
+//this function runs when the flag provided is run, it runs in the control node and sets up runners for each workload
 func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
 	workloads := db.Workloads()
 	for _, workload := range workloads {
@@ -54,6 +57,8 @@ func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
 			log.Error("Error in Runner.SetUp: %v", err)
 			return 1
 		}
+
+		//history is a slice of Operations returned by the runner object's run method
 		history, err := runner.Run()
 		if err != nil {
 			return 1
@@ -69,6 +74,8 @@ func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
 	return 0
 }
 
+//this function runs when the flag provided is rpc, it sets up the rpc server for communication between control and worker nodes on the specified port on the worker nodes 
+//it calls the Listen function from the jrpc package to start listening for incoming rpc requests
 func cmdRpc(opt *gorgon.Options) int {
 	err := jrpc.Listen(fmt.Sprintf(":%v", opt.RpcPort), []byte(opt.RpcPassword))
 	if err != nil {
