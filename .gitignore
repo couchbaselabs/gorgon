@@ -6,6 +6,10 @@
 !Makefile
 !Dockerfile
 
+# Hidden directories
+.*/
+!.github/
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -31,9 +35,6 @@ go.work.sum
 
 # HTML test output
 *~*.html
-
-# Hidden directories
-.*/
 
 # OS files
 *.DS_Store

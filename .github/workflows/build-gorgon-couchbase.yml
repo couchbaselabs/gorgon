@@ -1,0 +1,30 @@
+name: Build gorgon_couchbase
+
+on:
+  push:
+    paths:
+      - "src/gorgon/**"
+      - "src/gorgon_couchbase/**"
+      - ".github/workflows/build-gorgon-couchbase.yml"
+  pull_request:
+    paths:
+      - "src/gorgon/**"
+      - "src/gorgon_couchbase/**"
+      - ".github/workflows/build-gorgon-couchbase.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+          cache-dependency-path: src/gorgon_couchbase/go.sum
+
+      - name: Build gorgon_couchbase
+        working-directory: src/gorgon_couchbase
+        run: go build
