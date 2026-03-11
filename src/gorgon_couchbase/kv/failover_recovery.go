@@ -128,6 +128,20 @@ func (nemesis *failoverAndRecovery) invokeFailover(instr *FailoverInstruction, g
 }
 
 func (nemesis *failoverAndRecovery) invokeRecovery(instr *RecoveryInstruction, getTime func() int64) (int64, gorgon.Output) {
-	// TODO
+	if instr.RecoveryType != "full" && instr.RecoveryType != "delta" {
+		return getTime(), errors.New("invalid recovery type: " + instr.RecoveryType)
+	}
+	err := nemesis.recoveryRequest(instr.RecoveryType)
+	if err != nil {
+		return getTime(), err 
+	}
 	return getTime(), nil
+}
+
+func (nemesis *failoverAndRecovery) recoveryRequest(recovery_type string) error {
+		err := nemesis.db.httpPost(nemesis.node, "/controller/setRecoveryType", map[string]string{
+			"otpNode": "ns_1@" + nemesis.node,
+			"recoveryType": recovery_type,
+		})
+		return err 
 }
