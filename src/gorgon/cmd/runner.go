@@ -23,6 +23,11 @@ type Runner struct {
 	clients  []gorgon.Client
 }
 
+var (
+	linearizabilityErr = errors.New("linearizability check failed")
+	sequentialErr = errors.New("sequential consistency check failed")
+)
+
 // NewRunner creates a new Runner instance with a unique descriptive name
 func NewRunner(db gorgon.Database, workload gorgon.Workload, opts *gorgon.Options) *Runner {
 	var sb strings.Builder
@@ -227,11 +232,16 @@ func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) 
 		level := log.INFO
 		// Save visualization for failed checks to help developers debug the violation
 		if result != porcupine.Ok {
+			// No previous partition has encountered an error (check or visual) and current partition failed its check 
+			if err == nil {
+				err = linearizabilityErr
+			}
 			linearizable = false
 			level = log.WARNING
 			filePath := path.Join(dir, EscapeFileName(fmt.Sprintf(
 				"%s.%s.%d.html", now.Format(fileTime), runner.name, i)))
 			visErr := porcupine.VisualizePath(dmodel, info, filePath)
+			// If there is a visualization error in current partition and no previously checked partition has error (check or visual)
 			if visErr != nil && err == nil {
 				err = visErr
 			}
@@ -252,6 +262,8 @@ func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) 
 		result, info := CheckSeqnuentialConsistency(model, hist, time.Minute)
 		level := log.INFO
 		if result != checkers.Ok {
+			// Overwrite the error that might be set due to a failure in linearizability (test check or visualization)
+			err = sequentialErr
 			level = log.WARNING
 		}
 		filePath := path.Join(dir, EscapeFileName(fmt.Sprintf(
