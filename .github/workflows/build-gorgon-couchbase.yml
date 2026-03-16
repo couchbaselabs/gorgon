@@ -25,6 +25,22 @@ jobs:
           go-version: "1.23"
           cache-dependency-path: src/gorgon_couchbase/go.sum
 
-      - name: Build gorgon_couchbase
+      - name: Go Format gorgon
+        working-directory: src/gorgon
+        run: gofmt -s -w . && git diff --exit-code
+      
+      - name: Go Format gorgon_couchbase
+        working-directory: src/gorgon_couchbase
+        run: gofmt -s -w . && git diff --exit-code
+
+      - name: Go Tidy gorgon
+        working-directory: src/gorgon
+        run: go mod tidy && git diff --exit-code
+
+      - name: Go Tidy gorgon_couchbase
+        working-directory: src/gorgon_couchbase
+        run: go mod tidy && git diff --exit-code
+
+      - name: Go Build gorgon_couchbase
         working-directory: src/gorgon_couchbase
         run: go build
