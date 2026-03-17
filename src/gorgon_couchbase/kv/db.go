@@ -71,7 +71,9 @@ func (db *database) SetUp() error {
 		if err := db.httpPost(node, "controller/hardResetNode", nil); err != nil {
 			return err
 		}
-		if err := db.httpPost(node, "nodes/self/controller/settings", nil); err != nil {
+		if err := db.httpPost(node, "nodes/self/controller/settings", map[string]string{
+			"path": "/tmp/lazyfs.mnt",
+		}); err != nil {
 			return err
 		}
 		if err := db.httpPost(node, "node/controller/rename", map[string]string{
@@ -216,9 +218,14 @@ func (db *database) httpPost(node, endpoint string, form map[string]string) erro
 
 func (db *database) NewClient(id int) (gorgon.Client, error) {
 	nodes := db.options.Nodes
+
+	// If the a proxy mode is enabled,
+	// This method returns the ClientOverRpc object which is the proxy object
 	if *db.config.ClientOverRpc {
 		return rpcs.NewClientOverRpc(id, nodes[id%len(nodes)], db.options), nil
 	}
+
+	// Otherwise return the normal client object that connects directly to the couchbase cluster
 	uri := fmt.Sprintf("couchbase://%s:%d", strings.Join(nodes, ","), *db.config.Port)
 	return NewClient(id, uri, *db.config.User, *db.config.Pass), nil
 }
@@ -242,6 +249,8 @@ func (db *database) Workloads() []gorgon.Workload {
 		workloads.GetSetWorkload().Add(nemeses.NewKillNemesis("memcached")).Add(NewSetAfterKillGenerator()),
 		// Partition the cluster, but don't block the web UI port
 		workloads.GetSetWorkload().Add(nemeses.NewNetworkPartitionNemesis(8091)).Add(NewPartitionAwareGetSetGenerator()),
+		// Workload with LazyFS nemesis
+		workloads.GetSetWorkload().Add(nemeses.NewLazyFsNemesis("echo \"lazyfs::clear-cache\" > /tmp/faults.fifo")),
 		// Workload to failover (hard or graceful) and recover (full or delta)
 		workloads.GetSetWorkload().Add(NewFailoverAndRecoveryNemesis(db, "Graceful", "Full")),
 		workloads.GetSetWorkload().Add(NewFailoverAndRecoveryNemesis(db, "Hard", "Full")),
