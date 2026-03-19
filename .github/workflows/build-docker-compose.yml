@@ -1,0 +1,23 @@
+name: Build docker/gorgon_couchbase
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/build-docker-compose.yml"
+      - "docker/gorgon_couchbase/**/Dockerfile"
+      - "docker/gorgon_couchbase/Makefile"
+      - "docker/gorgon_couchbase/*.yaml"
+      - "docker/gorgon_couchbase/*.py"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        
+      - name: Set up Docker
+        uses: docker/setup-compose-action@v2.1.0
+
+      - run: make build
+        working-directory: docker/gorgon_couchbase

@@ -18,7 +18,7 @@ compose.yaml: compose.control.yaml compose.node.yaml compose.py
 	python3 compose.py 3
 
 build: all
-	docker-compose -f compose.yaml build
+	docker compose -f compose.yaml build
 
 clean:
 	rm */*.tgz

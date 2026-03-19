@@ -9,4 +9,4 @@ pwd
 
 make
 
-docker-compose -f compose.yaml up --force-recreate $*
+docker compose -f compose.yaml up --force-recreate $*
