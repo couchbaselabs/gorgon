@@ -14,6 +14,8 @@ ADD src.tgz /
 WORKDIR /src/gorgon_couchbase
 RUN go build
 
+RUN mkdir /root/store
+
 WORKDIR /root
 COPY init.sh run.sh /
 COPY workloads/ /workloads/
