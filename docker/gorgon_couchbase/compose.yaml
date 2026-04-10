@@ -29,7 +29,10 @@ services:
     cpu_count: 2
     mem_limit: 3G
     mem_swappiness: 1
-    build: ./node
+    build:
+      context: ./node
+      args:
+        CB_VERSION: "7.6.10-8025-1"
   n1:
     container_name: gorgon-n1
     hostname: n1.local

@@ -15,7 +15,7 @@ node/deps.tgz: $(MODULE_FILES)
 	tar -czf $@ -C ../.. $(MODULE_FILES:../../%=%)
 
 compose.yaml: compose.control.yaml compose.node.yaml compose.py
-	python3 compose.py 3
+	python3 compose.py 3 $(CB_VERSION)
 
 build: all
 	docker compose -f compose.yaml build

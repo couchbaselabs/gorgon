@@ -1,5 +1,6 @@
 FROM ubuntu:24.04
 
+ARG CB_VERSION
 ENV LANG=C.UTF-8
 
 RUN apt-get -y update && apt-get -y install \
@@ -9,7 +10,7 @@ RUN wget https://packages.couchbase.com/releases/couchbase-release/couchbase-rel
     && dpkg -i couchbase-release-1.0-noarch.deb \
     && rm couchbase-release-1.0-noarch.deb \
     && apt-get -y update \
-    && apt-get -y install couchbase-server
+    && apt-get -y install couchbase-server${CB_VERSION:+=$CB_VERSION}
 
 RUN mkdir /root/deps
 ADD deps.tgz /root/deps
