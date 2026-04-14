@@ -47,6 +47,7 @@ func (*database) Name() string {
 
 func (db *database) SetOptions(opt *gorgon.Options) error {
 	db.options = opt
+	opt.OperationTimeout = *db.config.Timeout // Set Timeout for upper bound of latency histogram
 	if durability := *db.config.Durability; len(durability) != 0 {
 		db.durability = parseDurabilityLevel(durability)
 		if db.durability == gocb.DurabilityLevelUnknown {
