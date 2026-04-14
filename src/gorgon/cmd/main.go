@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/couchbaselabs/gorgon/src/gorgon"
 	"github.com/couchbaselabs/gorgon/src/gorgon/jrpc"
 	"github.com/couchbaselabs/gorgon/src/gorgon/log"
@@ -47,10 +48,12 @@ func usage() int {
 
 // Execute all matching workloads in sequence, stopping on first failure
 func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
+	maxLatency := int64(opt.OperationTimeout / time.Microsecond) // maxLatency has to be in microseconds
+	histogram := hdrhistogram.New(1, 2*maxLatency, 3)            // maxLatency is the operation timeout configured for a db
 	workloads := db.Workloads()
 	// Run each workload independently to isolate failures and verify consistency guarantees
 	for _, workload := range workloads {
-		runner := NewRunner(db, workload, opt)
+		runner := NewRunner(db, workload, opt, histogram)
 		// Skip workloads that don't match user-specified filter pattern
 		if !filter.Match(runner.Name()) {
 			continue
