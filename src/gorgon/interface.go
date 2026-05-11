@@ -57,6 +57,10 @@ type Options struct {
 	ContinueAmbiguousClient bool
 	RpcPort                 int
 	RpcPassword             string
+	LogDirectory            string
+	CbcollectLogging        bool
+	NetworkTraceCapture     bool
+	ErrOnTestFail           string
 }
 
 type Operation struct {

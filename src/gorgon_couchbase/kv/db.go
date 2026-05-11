@@ -2,6 +2,7 @@ package kv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,10 +13,18 @@ import (
 
 	"github.com/couchbase/gocb/v2"
 	"github.com/couchbaselabs/gorgon/src/gorgon"
+	"github.com/couchbaselabs/gorgon/src/gorgon/jrpc"
 	"github.com/couchbaselabs/gorgon/src/gorgon/log"
 	"github.com/couchbaselabs/gorgon/src/gorgon/nemeses"
 	"github.com/couchbaselabs/gorgon/src/gorgon/rpcs"
 	"github.com/couchbaselabs/gorgon/src/gorgon/workloads"
+)
+
+// Errors that could occur in an rpc operation
+var (
+	dialErr  = errors.New("Error in rpc client connection")
+	rpcErr   = errors.New("Error in RPC invocation")
+	closeErr = errors.New("Error in closing rpc client")
 )
 
 // Flags initialized in main.go
@@ -72,6 +81,13 @@ func (db *database) SetUp() error {
 	replicas := *db.config.Replicas
 	storageEngine := *db.config.StorageEngine
 	vbuckets := *db.config.Vbuckets
+
+	if opt.NetworkTraceCapture {
+		err := db.StartNetworkCapture()
+		if err != nil {
+			return err
+		}
+	}
 
 	for _, node := range opt.Nodes {
 		if err := db.httpPost(node, "controller/hardResetNode", nil); err != nil {
@@ -135,6 +151,20 @@ func (db *database) SetUp() error {
 }
 
 func (db *database) TearDown() error {
+	// Invoke closing network capture if configured to collect trace
+	if db.options.NetworkTraceCapture {
+		err := db.StopNetworkCapture()
+		if err != nil {
+			return err
+		}
+	}
+	// Collect logs via the cbcollect logging
+	if db.options.CbcollectLogging {
+		err := db.CbCollectLogging()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -246,6 +276,84 @@ func (db *database) ClientConfig() string {
 		panic(err)
 	}
 	return string(configJson)
+}
+
+func (db *database) CbCollectLogging() error {
+	for _, node := range db.options.Nodes {
+		client, err := jrpc.Dial(
+			fmt.Sprintf("%s:%d", node, db.options.RpcPort),
+			[]byte(db.options.RpcPassword),
+		)
+		if err != nil {
+			err = dialErr
+			return err
+		}
+		outputPath := db.options.LogDirectory
+		var reply string
+		err = client.Call("CbcollectRpc.CbCollectLogs", &outputPath, &reply)
+		if err != nil {
+			err = rpcErr
+			return err
+		}
+		if client.Close() != nil {
+			err = closeErr
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *database) StartNetworkCapture() error {
+	for _, node := range db.options.Nodes {
+		client, err := jrpc.Dial(
+			fmt.Sprintf("%s:%d", node, db.options.RpcPort),
+			[]byte(db.options.RpcPassword),
+		)
+		if err != nil {
+			err = dialErr
+			return err
+		}
+		// Init the network capture configuration struct to pass to the rpc
+		networkConfig := &rpcs.NetworkCaptureConfig{
+			TsharkTimeout: db.options.WorkloadDuration * 2,
+			Directory:     db.options.LogDirectory,
+		}
+
+		var reply string
+		err = client.Call("NetworkTraceRpc.StartCapture", networkConfig, &reply)
+		if err != nil {
+			err = rpcErr
+			return err
+		}
+		if client.Close() != nil {
+			err = closeErr
+			return err
+		}
+	}
+	return nil
+}
+
+// Types of errors 1. rpc connection 2. killing tshark the process error
+func (db *database) StopNetworkCapture() error {
+	for _, node := range db.options.Nodes {
+		client, err := jrpc.Dial(fmt.Sprintf("%s:%d", node, db.options.RpcPort), []byte(db.options.RpcPassword))
+		if err != nil {
+			err = dialErr
+			return err
+		}
+		emptyStr := ""
+		var reply string
+		err = client.Call("NetworkTraceRpc.StopCapture", &emptyStr, &reply)
+		if err != nil {
+			err = rpcErr
+			return err
+		}
+		if client.Close() != nil {
+			err = closeErr
+			return err
+		}
+	}
+	return nil
 }
 
 func (db *database) Workloads() []gorgon.Workload {

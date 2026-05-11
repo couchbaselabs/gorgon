@@ -17,6 +17,8 @@ const exitUsage = 2
 // Entry point for Gorgon; delegates to either control node (run) or worker node (rpc) based on command
 func Main(db gorgon.Database) int {
 	var filter Filter
+
+	// Create an options object with some fields set, others defaulted.
 	opt := &gorgon.Options{
 		WorkloadDuration: time.Minute,
 		Concurrency:      6,
@@ -25,6 +27,7 @@ func Main(db gorgon.Database) int {
 	if ret := parseOptions(opt, &filter); ret != 0 {
 		return ret
 	}
+	// Validate the options and set them in the database, if there is an error log and exit with 1
 	if err := db.SetOptions(opt); err != nil {
 		log.Error("Error in Database.SetOptions: %v", err)
 		return 1
@@ -68,6 +71,10 @@ func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
 		}
 		// Verify linearizability/ sequential consistency of observed operations
 		if err := runner.Check(history, ""); err != nil {
+			if err == linearizabilityTimeoutErr || err == sequentialTimeoutErr {
+				log.Error("Consistency check timed out: %v", err)
+				return 3 // error code for unstable(timeout)
+			}
 			log.Error("Error in Runner.Check: %v", err)
 			return 1
 		}
@@ -125,6 +132,10 @@ func parseOptions(opt *gorgon.Options, filter *Filter) int {
 		"Don't stop a worker when its client returns an error that is not unambiguous")
 	flag.IntVar(&opt.RpcPort, "gorgon-rpc-port", opt.RpcPort, "RPC port to connect")
 	flag.StringVar(&opt.RpcPassword, "gorgon-rpc-password", opt.RpcPassword, "RPC password")
+	flag.BoolVar(&opt.CbcollectLogging, "gorgon-cbcollect-log", false, "boolean to enable cbcollect logs")
+	flag.BoolVar(&opt.NetworkTraceCapture, "gorgon-network-capture", false, "boolean to enable network trace capture")
+	flag.StringVar(&opt.LogDirectory, "gorgon-log-directory", "/root/store/cbcollects_and_captures/", "Path for cbcollect log zip file")
+	flag.StringVar(&opt.ErrOnTestFail, "gorgon-err-on-test-fail", "", "Consistency level that triggers a test failure error: linearizability or sequential")
 
 	flag.Parse()
 	if flag.NArg() == 0 {
@@ -163,6 +174,5 @@ func parseOptions(opt *gorgon.Options, filter *Filter) int {
 		fmt.Println("Minimum one node")
 		return exitUsage
 	}
-
 	return 0
 }
