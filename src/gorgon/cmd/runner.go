@@ -23,6 +23,15 @@ type Runner struct {
 	clients  []gorgon.Client
 }
 
+type GorgonConfig struct {
+	Options *gorgon.Options
+}
+
+type TestRunResult struct {
+	History         []gorgon.Operation
+	ConsistencyType string
+}
+
 // NewRunner creates a new Runner instance with a unique descriptive name
 func NewRunner(db gorgon.Database, workload gorgon.Workload, opts *gorgon.Options) *Runner {
 	var sb strings.Builder
@@ -141,7 +150,8 @@ func (runner *Runner) Run() ([]gorgon.Operation, error) {
 	// Block until all workers finish
 	wg.Wait()
 	log.Info("[%s] Workers finished", runner.name)
-	return operationList.Extract(), nil
+	history := operationList.Extract()
+	return history, nil
 }
 
 func (runner *Runner) TearDown() (retErr error) {
@@ -167,8 +177,8 @@ func (runner *Runner) TearDown() (retErr error) {
 	return
 }
 
-func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) {
-	const fileTime = "2006-01-02-150405-0700"
+func (runner *Runner) Check(history []gorgon.Operation, testMap *TestRunResult, dir string) (err error) {
+	testMap.History = history
 	model := runner.workload.Model
 
 	// Wrap workload model to match porcupine's expected interface
@@ -212,7 +222,7 @@ func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) 
 			linearizable = false
 			level = log.WARNING
 			filePath := path.Join(dir, EscapeFileName(fmt.Sprintf(
-				"%s.%s.%d.html", now.Format(fileTime), runner.name, i)))
+				"%s.%s.%d.html", now.Format(FileTime), runner.name, i)))
 			visErr := porcupine.VisualizePath(dmodel, info, filePath)
 			if visErr != nil && err == nil {
 				err = visErr
@@ -221,8 +231,12 @@ func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) 
 		log.Log(level, "[%s] Checked partition %d - %s", runner.name, i, result)
 	}
 
+	testMap.ConsistencyType = "linearizable"
+
 	// Sequential consistency is a weaker guarantee; check when linearizability fails
 	if !linearizable {
+		testMap.ConsistencyType = "sequential"
+
 		var hist [][]gorgon.Operation
 		for _, op := range history {
 			for len(hist) <= op.ClientId {
@@ -235,10 +249,11 @@ func (runner *Runner) Check(history []gorgon.Operation, dir string) (err error) 
 		result, info := CheckSeqnuentialConsistency(model, hist, time.Minute)
 		level := log.INFO
 		if result != checkers.Ok {
+			testMap.ConsistencyType = "none"
 			level = log.WARNING
 		}
 		filePath := path.Join(dir, EscapeFileName(fmt.Sprintf(
-			"%s.%s.html", now.Format(fileTime), runner.name)))
+			"%s.%s.html", now.Format(FileTime), runner.name)))
 		visErr := checkers.VisualizeSequentialPath(model, hist, info, filePath)
 		if visErr != nil && err == nil {
 			err = visErr
@@ -319,7 +334,7 @@ func (w *worker) run() {
 		op.Output = output
 
 		// An operation that failed ambiguously may complete at an unknown time.
-		// Issuing further operation on thesame client wuld make them concurrent,
+		// Issuing further operation on the same client would make them concurrent,
 		// breaking the assumption of client = thread.
 		if err, ok := output.(error); ok && !gorgon.IsUnambiguousError(err) {
 			op.Return = -1

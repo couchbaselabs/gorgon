@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -13,6 +15,9 @@ import (
 )
 
 const exitUsage = 2
+
+// FileTime is the timestamp format used for filenames throughout the codebase
+const FileTime = "2006-01-02-150405-0700"
 
 // Entry point for Gorgon; delegates to either control node (run) or worker node (rpc) based on command
 func Main(db gorgon.Database) int {
@@ -47,6 +52,12 @@ func usage() int {
 
 // Execute all matching workloads in sequence, stopping on first failure
 func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
+	configmap := &GorgonConfig{opt}
+	err := SaveMap(configmap, "", opt.StoreSubdir)
+	testMap := &TestRunResult{}
+	if err != nil {
+		return 1
+	}
 	workloads := db.Workloads()
 	// Run each workload independently to isolate failures and verify consistency guarantees
 	for _, workload := range workloads {
@@ -67,10 +78,15 @@ func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
 			log.Error("Error in Runner.TearDown: %v", err)
 		}
 		// Verify linearizability/ sequential consistency of observed operations
-		if err := runner.Check(history, ""); err != nil {
+		if err := runner.Check(history, testMap, ""); err != nil {
 			log.Error("Error in Runner.Check: %v", err)
 			return 1
 		}
+		if err := SaveMap(testMap, runner.name, opt.StoreSubdir); err != nil {
+			log.Error("Error in Runner.SaveMap: %v", err)
+			return 1
+		}
+		testMap = &TestRunResult{}
 	}
 	return 0
 }
@@ -110,6 +126,39 @@ func cmdCloseRpc(opt *gorgon.Options) int {
 	return 0
 }
 
+func SaveMap(m any, name string, storeSubdir string) error {
+	timestamp := time.Now().Format(FileTime)
+	var prefix string
+	var filename string
+	switch m.(type) {
+	case *GorgonConfig:
+		prefix = "configmap"
+		filename = "configmap-" + timestamp + ".json"
+	case *TestRunResult:
+		prefix = "testmap"
+		filename = name + "-" + prefix + "-" + timestamp + ".json"
+	default:
+		return fmt.Errorf("unsupported map type: %T", m)
+	}
+
+	data, err := json.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s: %w", prefix, err)
+	}
+
+	dir := path.Join("/root/store", storeSubdir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	filePath := path.Join(dir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", filePath, err)
+	}
+
+	return nil
+}
+
 // Parse and validate command-line options; early validation prevents runtime errors
 func parseOptions(opt *gorgon.Options, filter *Filter) int {
 	matchPattern := "*"
@@ -125,6 +174,7 @@ func parseOptions(opt *gorgon.Options, filter *Filter) int {
 		"Don't stop a worker when its client returns an error that is not unambiguous")
 	flag.IntVar(&opt.RpcPort, "gorgon-rpc-port", opt.RpcPort, "RPC port to connect")
 	flag.StringVar(&opt.RpcPassword, "gorgon-rpc-password", opt.RpcPassword, "RPC password")
+	flag.StringVar(&opt.StoreSubdir, "gorgon-store-subdir", "gorgon_maps", "Subdirectory under /root/store/ to save maps")
 
 	flag.Parse()
 	if flag.NArg() == 0 {
