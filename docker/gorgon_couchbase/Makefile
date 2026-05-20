@@ -14,8 +14,10 @@ node/src.tgz: $(shell find ../../src)
 node/deps.tgz: $(MODULE_FILES)
 	tar -czf $@ -C ../.. $(MODULE_FILES:../../%=%)
 
+DB_NODES ?= 3
+
 compose.yaml: compose.control.yaml compose.node.yaml compose.py
-	python3 compose.py 3
+	python3 compose.py $(DB_NODES)
 
 build: all
 	docker compose -f compose.yaml build

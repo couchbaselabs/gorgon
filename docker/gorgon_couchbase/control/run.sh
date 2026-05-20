@@ -15,13 +15,16 @@ for node in ${NODES//,/ } ; do
 done
 
 {
+    failed=0
     for workload in /workloads/*.sh ; do
         echo
         echo "Running $workload"
         echo
-        bash "$workload" || break
+        bash "$workload" || failed=1
     done
+    exit $failed
 } 2>&1 | tee gorgon.log
+exit_code=${PIPESTATUS[0]}
 
 tar -czf files.tgz gorgon.log *.html
 
@@ -29,3 +32,5 @@ gorgon_couchbase -gorgon-nodes $NODES closerpc
 
 echo
 echo DONE
+
+exit $exit_code

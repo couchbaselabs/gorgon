@@ -5,6 +5,7 @@
 
 !Makefile
 !Dockerfile
+!Jenkinsfile
 
 # Hidden directories
 .*/
