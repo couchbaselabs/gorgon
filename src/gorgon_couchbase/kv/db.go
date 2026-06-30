@@ -2,6 +2,7 @@ package kv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -168,6 +169,34 @@ func (db *database) waitForRebalance(apiNode string) error {
 	return nil
 }
 
+func (db *database) requestAddNode(apiNode, addNode string) error {
+	return db.httpPost(apiNode, "controller/addNode", map[string]string{
+		"hostname": addNode,
+		"user":     *db.config.User,
+		"password": *db.config.Pass,
+		"services": "kv",
+	})
+}
+
+func (db *database) findOrchestrator(apiNode string) (string, error) {
+	bytes, err := db.httpGet(apiNode, "pools/default/terseClusterInfo")
+	if err != nil {
+		return "", err
+	}
+	obj := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &obj); err != nil {
+		return "", err
+	}
+	orchestrator, ok := obj["orchestrator"].(string)
+	if !ok {
+		return "", errors.New("kv: cannot parse orchestrator response body")
+	}
+	if orchestrator == "undefined" {
+		return "", errors.New("kv: orchestrator-node not known")
+	}
+	return orchestrator, nil
+}
+
 func formatOtpNodes(nodes []string) string {
 	var builder strings.Builder
 	for i, node := range nodes {
@@ -249,6 +278,9 @@ func (db *database) ClientConfig() string {
 }
 
 func (db *database) Workloads() []gorgon.Workload {
+	nodes := db.options.Nodes
+	additionalNode := db.options.AdditionalNodes[0]
+
 	return []gorgon.Workload{
 		// Basic workload with getset instruction
 		workloads.GetSetWorkload(),
@@ -259,5 +291,21 @@ func (db *database) Workloads() []gorgon.Workload {
 		// Workload to failover (hard or graceful) and recover (full or delta)
 		workloads.GetSetWorkload().Add(NewFailoverAndRecoveryNemesis(db, "Graceful", "Full")),
 		workloads.GetSetWorkload().Add(NewFailoverAndRecoveryNemesis(db, "Hard", "Full")),
+		// Swap rebalance: add additionalNode, remove nodes[0]
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, additionalNode, nodes[0])),
+		// Sequential rebalance: remove nodes[0] and nodes[1], add nodes[0] and nodes[1]
+		workloads.GetSetWorkload().Add(NewAdditionalRebalanceGenerator(db, []string{nodes[0], nodes[1]}, []string{nodes[0], nodes[1]}, "sequential")),
+		// Bulk rebalance: remove nodes[0] and nodes[1], add nodes[0] and nodes[1]
+		workloads.GetSetWorkload().Add(NewAdditionalRebalanceGenerator(db, []string{nodes[0], nodes[1]}, []string{nodes[0], nodes[1]}, "bulk")),
+		// Swap rebalance followed by memcached kill on swap-in node
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, additionalNode, nodes[0], "memcached", additionalNode)),
+		// Rebalance-out nodes[0] followed by memcached kill on nodes[0]
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, "", nodes[0], "memcached", nodes[0])),
+		// Rebalance-in additionalNode followed by cluster orchestrator crash
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, additionalNode, "", "beam.smp", additionalNode)),
+		// Rebalance-in additionalNode followed by partitioning additionalNode
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, additionalNode, "", additionalNode)),
+		// Rebalance-out nodes[0] followed by partitioning nodes[0]
+		workloads.GetSetWorkload().Add(NewRebalanceGenerator(db, "", nodes[0], nodes[0])),
 	}
 }

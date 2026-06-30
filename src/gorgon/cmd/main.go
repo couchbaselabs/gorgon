@@ -18,9 +18,10 @@ const exitUsage = 2
 func Main(db gorgon.Database) int {
 	var filter Filter
 	opt := &gorgon.Options{
-		WorkloadDuration: time.Minute,
-		Concurrency:      6,
-		RpcPort:          9090,
+		WorkloadDuration:    time.Minute,
+		Concurrency:         6,
+		RpcPort:             9090,
+		AdditionalNodeCount: 1,
 	}
 	if ret := parseOptions(opt, &filter); ret != 0 {
 		return ret
@@ -31,6 +32,17 @@ func Main(db gorgon.Database) int {
 	}
 	switch flag.Arg(0) {
 	case "run":
+		if len(opt.Nodes) < 2 {
+			fmt.Printf("at least 2 nodes are required for 'run' (got %d); use --gorgon-nodes n0,n1,...\n", len(opt.Nodes))
+			return exitUsage
+		}
+		if opt.AdditionalNodeCount <= 0 || opt.AdditionalNodeCount >= len(opt.Nodes) {
+			fmt.Printf("additionalNodeCount must be between 1 and %d (got %d)\n", len(opt.Nodes)-1, opt.AdditionalNodeCount)
+			return exitUsage
+		}
+		splitAt := len(opt.Nodes) - opt.AdditionalNodeCount
+		opt.AdditionalNodes = opt.Nodes[splitAt:]
+		opt.Nodes = opt.Nodes[:splitAt]
 		return cmdRun(db, opt, &filter)
 	case "rpc":
 		return cmdRpc(opt)
@@ -120,6 +132,7 @@ func parseOptions(opt *gorgon.Options, filter *Filter) int {
 	flag.StringVar(&matchPattern, "gorgon-match", matchPattern, "Wildcard pattern for scenarios to run")
 	flag.StringVar(&excludePattern, "gorgon-exclude", excludePattern, "Wildcard pattern for scenarios to exclude")
 	flag.StringVar(&nodes, "gorgon-nodes", nodes, "Comma-separated list of nodes")
+	flag.IntVar(&opt.AdditionalNodeCount, "gorgon-additional-node-count", opt.AdditionalNodeCount, "Number of additional nodes for swap-rebalance and rebalance-in")
 	flag.StringVar(&storeDir, "gorgon-store-dir", storeDir, "Directory to store artefacts (defaults to working directory)")
 	flag.DurationVar(&opt.WorkloadDuration, "gorgon-workload-duration", opt.WorkloadDuration, "Intended workload/nemesis duration")
 	flag.IntVar(&opt.Concurrency, "gorgon-concurrency", opt.Concurrency, "Number of clients to use")
