@@ -15,9 +15,14 @@ func NewKillNemesis(process string) gorgon.Generator {
 	return &killNemesis{process: process}
 }
 
+func NewKillNemesisWithNode(process, node string) gorgon.Generator {
+	return &killNemesis{process: process, node: node}
+}
+
 type killNemesis struct {
 	process string
 	next    time.Time
+	node    string
 	client  *rpc.Client
 }
 
@@ -42,8 +47,10 @@ func (nemesis *killNemesis) Next(client int) (gorgon.Instruction, error) {
 }
 
 func (nemesis *killNemesis) SetUp(opt *gorgon.Options) error {
-	node := opt.Nodes[splitmix.Rand.Intn(len(opt.Nodes))]
-	client, err := jrpc.Dial(fmt.Sprintf("%s:%d", node, opt.RpcPort), []byte(opt.RpcPassword))
+	if nemesis.node == "" {
+		nemesis.node = opt.Nodes[splitmix.Rand.Intn(len(opt.Nodes))]
+	}
+	client, err := jrpc.Dial(fmt.Sprintf("%s:%d", nemesis.node, opt.RpcPort), []byte(opt.RpcPassword))
 	if err != nil {
 		return err
 	}
