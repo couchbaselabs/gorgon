@@ -1,2 +1,4 @@
 github.com/anishathalye/porcupine v1.0.3 h1:0V+ZTHPjWUhYhiVaksoBFKfmBvoJrM3BXLQKGqPqiHM=
 github.com/anishathalye/porcupine v1.0.3/go.mod h1:WM0SsFjWNl2Y4BqHr/E/ll2yY1GY1jqn+W7Z/84Zoog=
+github.com/elastic/go-hdrhistogram v0.1.0 h1:7UVeQ9MsO5c9h8RJeH2S2lXCGi9hQB/94W6Pjjqprc4=
+github.com/elastic/go-hdrhistogram v0.1.0/go.mod h1:NEl0wZTQXzwq7X2WBZGl5G3efcKbvv+r9mTZpXrIs78=

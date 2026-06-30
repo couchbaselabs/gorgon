@@ -58,6 +58,7 @@ type Options struct {
 	RpcPort                 int
 	RpcPassword             string
 	StoreDir                string
+	OperationTimeout        time.Duration
 }
 
 type Operation struct {

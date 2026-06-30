@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/rpc"
 	"os"
-	"time"
 
 	"github.com/couchbaselabs/gorgon/src/gorgon/cmd"
 	"github.com/couchbaselabs/gorgon/src/gorgon/generators"
@@ -22,7 +21,6 @@ func main() {
 		Port:           flag.Int("port", 11210, "Couchbase port"),
 		Replicas:       flag.Int("replicas", 1, "Number of Couchbase replicas (0-3)"),
 		Durability:     flag.String("durability", "none", "Couchbase durability level"),
-		Timeout:        flag.Duration("timeout", 5*time.Second, "Couchbase operation timeout"),
 		ClientOverRpc:  flag.Bool("client-over-rpc", false, "Use RPC for client operations"),
 		StorageEngine:  flag.String("storage-engine", "couchstore", "Couchbase storage engine (couchstore/magma)"),
 		Vbuckets:       flag.Int("vbuckets", 1024, "Number of vbuckets for the bucket"),

@@ -25,7 +25,6 @@ type DatabaseConfig struct {
 	Port           *int
 	Replicas       *int
 	Durability     *string
-	Timeout        *time.Duration
 	ClientOverRpc  *bool
 	StorageEngine  *string
 	Vbuckets       *int
@@ -240,7 +239,7 @@ func (db *database) NewClient(id int) (gorgon.Client, error) {
 func (db *database) ClientConfig() string {
 	config := ClientConfig{
 		Durability: *db.config.Durability,
-		Timeout:    *db.config.Timeout}
+		Timeout:    db.options.OperationTimeout}
 	configJson, err := json.Marshal(config)
 	if err != nil {
 		panic(err)

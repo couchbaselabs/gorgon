@@ -10,6 +10,7 @@ import (
 	"github.com/couchbaselabs/gorgon/src/gorgon"
 	"github.com/couchbaselabs/gorgon/src/gorgon/jrpc"
 	"github.com/couchbaselabs/gorgon/src/gorgon/log"
+	"github.com/elastic/go-hdrhistogram"
 )
 
 const exitUsage = 2
@@ -19,6 +20,7 @@ func Main(db gorgon.Database) int {
 	var filter Filter
 	opt := &gorgon.Options{
 		WorkloadDuration: time.Minute,
+		OperationTimeout: 5 * time.Second,
 		Concurrency:      6,
 		RpcPort:          9090,
 	}
@@ -47,10 +49,12 @@ func usage() int {
 
 // Execute all matching workloads in sequence, stopping on first failure
 func cmdRun(db gorgon.Database, opt *gorgon.Options, filter *Filter) int {
+	maxLatency := int64(opt.OperationTimeout / time.Microsecond) // maxLatency has to be in microseconds
+	histogram := hdrhistogram.New(1, 2*maxLatency, 3)            // maxLatency is the operation timeout configured for a db
 	workloads := db.Workloads()
 	// Run each workload independently to isolate failures and verify consistency guarantees
 	for _, workload := range workloads {
-		runner := NewRunner(db, workload, opt)
+		runner := NewRunner(db, workload, opt, histogram)
 		// Skip workloads that don't match user-specified filter pattern
 		if !filter.Match(runner.Name()) {
 			continue
@@ -122,6 +126,7 @@ func parseOptions(opt *gorgon.Options, filter *Filter) int {
 	flag.StringVar(&nodes, "gorgon-nodes", nodes, "Comma-separated list of nodes")
 	flag.StringVar(&storeDir, "gorgon-store-dir", storeDir, "Directory to store artefacts (defaults to working directory)")
 	flag.DurationVar(&opt.WorkloadDuration, "gorgon-workload-duration", opt.WorkloadDuration, "Intended workload/nemesis duration")
+	flag.DurationVar(&opt.OperationTimeout, "gorgon-operation-timeout", opt.OperationTimeout, "Couchbase operation timeout")
 	flag.IntVar(&opt.Concurrency, "gorgon-concurrency", opt.Concurrency, "Number of clients to use")
 	flag.BoolVar(&opt.ContinueAmbiguousClient, "gorgon-continue-ambiguous-client", false,
 		"Don't stop a worker when its client returns an error that is not unambiguous")

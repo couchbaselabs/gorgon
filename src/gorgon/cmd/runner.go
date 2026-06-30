@@ -13,18 +13,20 @@ import (
 	"github.com/couchbaselabs/gorgon/src/gorgon"
 	"github.com/couchbaselabs/gorgon/src/gorgon/checkers"
 	"github.com/couchbaselabs/gorgon/src/gorgon/log"
+	"github.com/elastic/go-hdrhistogram"
 )
 
 type Runner struct {
-	name     string
-	db       gorgon.Database
-	workload gorgon.Workload
-	options  *gorgon.Options
-	clients  []gorgon.Client
+	name             string
+	db               gorgon.Database
+	workload         gorgon.Workload
+	options          *gorgon.Options
+	clients          []gorgon.Client
+	latencyHistogram *hdrhistogram.Histogram
 }
 
 // NewRunner creates a new Runner instance with a unique descriptive name
-func NewRunner(db gorgon.Database, workload gorgon.Workload, opts *gorgon.Options) *Runner {
+func NewRunner(db gorgon.Database, workload gorgon.Workload, opts *gorgon.Options, latencyHistogram *hdrhistogram.Histogram) *Runner {
 	var sb strings.Builder
 	// Start with database name as the primary identifier for this test run
 	sb.WriteString(db.Name())
@@ -33,8 +35,7 @@ func NewRunner(db gorgon.Database, workload gorgon.Workload, opts *gorgon.Option
 		sb.WriteByte('~')
 		sb.WriteString(gen.Name())
 	}
-	// Construct runner with computed name
-	return &Runner{sb.String(), db, workload, opts, nil}
+	return &Runner{sb.String(), db, workload, opts, nil, latencyHistogram}
 }
 
 func (runner *Runner) Name() string {
@@ -141,7 +142,7 @@ func (runner *Runner) Run() ([]gorgon.Operation, error) {
 	// Block until all workers finish
 	wg.Wait()
 	log.Info("[%s] Workers finished", runner.name)
-	return operationList.Extract(), nil
+	return operationList.Extract(runner.latencyHistogram), nil
 }
 
 func (runner *Runner) TearDown() (retErr error) {
@@ -163,6 +164,14 @@ func (runner *Runner) TearDown() (retErr error) {
 				}
 			}
 		}
+	}
+	if runner.latencyHistogram != nil {
+		log.Info("[%s] Latency: P50=%dµs P95=%dµs P99=%dµs P99.9=%dµs", runner.name,
+			runner.latencyHistogram.ValueAtQuantile(50),
+			runner.latencyHistogram.ValueAtQuantile(95),
+			runner.latencyHistogram.ValueAtQuantile(99),
+			runner.latencyHistogram.ValueAtQuantile(99.9))
+		runner.latencyHistogram.Reset()
 	}
 	return
 }

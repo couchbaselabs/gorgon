@@ -3,6 +3,9 @@ package gorgon
 import (
 	"sync"
 	"time"
+
+	"github.com/couchbaselabs/gorgon/src/gorgon/log"
+	hdrhistogram "github.com/elastic/go-hdrhistogram"
 )
 
 type OperationList struct {
@@ -40,7 +43,7 @@ func (list *OperationList) Append(op Operation) {
 	list.mutex.Unlock()
 }
 
-func (list *OperationList) Extract() []Operation {
+func (list *OperationList) Extract(histogram *hdrhistogram.Histogram) []Operation {
 	list.mutex.Lock()
 	head := list.head
 	list.head = nil
@@ -66,6 +69,12 @@ func (list *OperationList) Extract() []Operation {
 		if ret[i].Return == -1 {
 			maxTime++
 			ret[i].Return = maxTime
+			continue
+		}
+		latency := ret[i].Return - ret[i].Call
+		err := histogram.RecordValue(latency)
+		if err != nil {
+			log.Warning("latency exceeding max value for histogram, ignored")
 		}
 	}
 
